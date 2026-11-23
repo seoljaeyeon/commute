@@ -204,7 +204,7 @@ async function load(){
     const o = mode==="work" ? h : w, d = mode==="work" ? w : h;
 
     const [national, highway] = await Promise.all([
-      directions(o, d, { avoid: "motorway", alternatives: "true" }),
+      directions(o, d, { avoid: "toll", alternatives: "true" }),
       directions(o, d, {}).catch(()=>[])
     ]);
 
