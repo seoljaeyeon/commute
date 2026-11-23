@@ -24,7 +24,13 @@
   .seg button.on{background:var(--accent);color:#fff}
   .meta{display:flex;justify-content:space-between;align-items:center;color:var(--sub);font-size:13px;margin:4px 2px 10px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
-  .card.best{border:2px solid var(--accent)}
+  .card[data-i]{cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .card.sel{border:2px solid var(--accent);padding:13px}
+  .radio{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);margin-right:8px;vertical-align:2px}
+  .card.sel .radio{border:6px solid var(--accent)}
+  .wrap{padding-bottom:96px}
+  .gobar{display:none;position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%)}
+  .gobar .go{max-width:488px;margin:0 auto;background:var(--accent);color:#fff;border:0;padding:15px;font-size:16px;border-radius:12px}
   .row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
   .dur{font-size:28px;font-weight:700;letter-spacing:-0.5px}
   .tag{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--line);color:var(--sub);white-space:nowrap}
@@ -88,6 +94,7 @@
 
   <div id="list"></div>
 </div>
+<div class="gobar" id="goBar"><a class="go" id="goBtn" href="#" target="_blank" rel="noopener"></a></div>
 
 <script>
 const DEFAULTS = { home: "전주시 덕진구 경동로 20", work: "세아베스틸 군산공장" };
@@ -98,6 +105,8 @@ const store = {
 const $ = id => document.getElementById(id);
 let mode = new Date().getHours() < 12 ? "work" : "home";
 let timer = null;
+let last = null;
+let selectedSig = null;
 
 function cfg(){
   return {
@@ -216,37 +225,49 @@ async function load(){
     }).sort((a,b)=>a.summary.duration-b.summary.duration);
 
     if (!routes.length) throw new Error("국도 경로를 찾지 못했어요.");
-    const bestDur = routes[0].summary.duration;
-    const now = new Date();
-
-    let html = routes.map((r,i) => {
-      const a = analyze(r), s = r.summary;
-      const diff = fmtMin(s.duration - bestDur);
-      return '<div class="card' + (i===0?" best":"") + '">' +
-        '<div class="row"><div class="dur">' + fmtMin(s.duration) + '분</div>' +
-        '<span class="tag' + (i===0?" best":"") + '">' + (i===0 ? "가장 빠름" : "+" + diff + "분") + '</span></div>' +
-        '<div class="sub">' + (s.distance/1000).toFixed(1) + 'km · ' + hhmm(new Date(now.getTime()+s.duration*1000)) + ' 도착' +
-        (a.jamKm >= 0.5 ? ' · 정체/지연 ' + a.jamKm.toFixed(1) + 'km' : '') +
-        (s.fare && s.fare.toll ? ' · 통행료 ' + s.fare.toll.toLocaleString() + '원' : '') + '</div>' +
-        '<div class="roads">' + (a.main.map(esc).join(" → ") || "-") + '</div>' + bar(a) +
-        '<a class="go" href="' + navLink(o,a,d) + '" target="_blank" rel="noopener">이 길로 카카오맵 열기</a></div>';
-    }).join("");
-
-    const hw = highway[0];
-    if (hw) {
-      const a = analyze(hw), s = hw.summary;
-      const diff = fmtMin(s.duration - bestDur);
-      html += '<div class="card"><div class="row"><div class="dur" style="font-size:22px">' + fmtMin(s.duration) + '분</div>' +
-        '<span class="tag ref">고속도로 포함 참고 ' + (diff<=0 ? diff+"분" : "+"+diff+"분") + '</span></div>' +
-        '<div class="sub">' + (s.distance/1000).toFixed(1) + 'km' + (s.fare && s.fare.toll ? ' · 통행료 ' + s.fare.toll.toLocaleString() + '원' : '') + '</div>' +
-        '<div class="roads">' + (a.main.map(esc).join(" → ") || "-") + '</div>' + bar(a) + '</div>';
-    }
-    list.innerHTML = html;
-    $("updated").textContent = hhmm(now) + " 기준";
+    const items = routes.map(r => ({ r, a: analyze(r), hw: false }));
+    if (highway[0]) items.push({ r: highway[0], a: analyze(highway[0]), hw: true });
+    items.forEach(it => it.sig = it.a.main.join("|"));
+    last = { items, o, d, now: new Date() };
+    // 새로고침 후에도 같은 길(주요 도로 구성)이면 선택 유지, 없으면 가장 빠른 길
+    if (!items.some(it => it.sig === selectedSig)) selectedSig = items[0].sig;
+    render();
+    $("updated").textContent = hhmm(last.now) + " 기준";
   } catch (e) {
+    last = null;
+    $("goBar").style.display = "none";
     list.innerHTML = '<div class="msg err">' + esc(e.message || e) + '</div>';
   }
 }
+
+function render(){
+  if (!last) return;
+  const { items, o, d, now } = last;
+  const bestDur = items[0].r.summary.duration;
+  $("list").innerHTML = items.map((it, i) => {
+    const s = it.r.summary, a = it.a;
+    const diff = fmtMin(s.duration - bestDur);
+    const tag = it.hw ? '<span class="tag ref">고속도로 포함 ' + (diff<=0 ? diff : "+"+diff) + '분</span>'
+      : '<span class="tag' + (i===0?" best":"") + '">' + (i===0 ? "가장 빠름" : "+" + diff + "분") + '</span>';
+    return '<div class="card' + (it.sig===selectedSig?" sel":"") + '" data-i="' + i + '">' +
+      '<div class="row"><div class="dur"><span class="radio"></span>' + fmtMin(s.duration) + '분</div>' + tag + '</div>' +
+      '<div class="sub">' + (s.distance/1000).toFixed(1) + 'km · ' + hhmm(new Date(now.getTime()+s.duration*1000)) + ' 도착' +
+      (a.jamKm >= 0.5 ? ' · 정체/지연 ' + a.jamKm.toFixed(1) + 'km' : '') +
+      (s.fare && s.fare.toll ? ' · 통행료 ' + s.fare.toll.toLocaleString() + '원' : '') + '</div>' +
+      '<div class="roads">' + (a.main.map(esc).join(" → ") || "-") + '</div>' + bar(a) + '</div>';
+  }).join("");
+  const sel = items.find(it => it.sig === selectedSig);
+  $("goBtn").href = navLink(o, sel.a, d);
+  $("goBtn").textContent = fmtMin(sel.r.summary.duration) + "분 · 이 길로 안내 시작";
+  $("goBar").style.display = "block";
+}
+
+$("list").addEventListener("click", e => {
+  const card = e.target.closest(".card[data-i]");
+  if (!card || !last) return;
+  selectedSig = last.items[+card.dataset.i].sig;
+  render();
+});
 
 function schedule(){
   clearInterval(timer);
