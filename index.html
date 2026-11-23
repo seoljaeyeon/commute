@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111418">
+<title>출퇴근 길</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --ink:#15181d; --sub:#6b7380; --line:#e4e7eb;
+    --accent:#1f6feb; --good:#1a9e5a; --slow:#e0a100; --delay:#e8590c; --jam:#d6336c; --none:#c4c9d0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1115; --card:#181b21; --ink:#eef0f3; --sub:#9aa3af; --line:#2a2f37; --accent:#4c8dff; --none:#444a54; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%}
+  .wrap{max-width:520px;margin:0 auto;padding:16px 16px 40px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  h1{font-size:20px;margin:0}
+  .icon-btn{background:none;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:8px 10px;font-size:14px;cursor:pointer}
+  .seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:12px}
+  .seg button{flex:1;border:0;background:none;color:var(--sub);padding:10px;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer}
+  .seg button.on{background:var(--accent);color:#fff}
+  .meta{display:flex;justify-content:space-between;align-items:center;color:var(--sub);font-size:13px;margin:4px 2px 10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+  .card.best{border:2px solid var(--accent)}
+  .row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .dur{font-size:28px;font-weight:700;letter-spacing:-0.5px}
+  .tag{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--line);color:var(--sub);white-space:nowrap}
+  .tag.best{background:var(--accent);color:#fff}
+  .tag.ref{background:transparent;border:1px dashed var(--sub)}
+  .sub{color:var(--sub);font-size:13px;margin-top:2px}
+  .roads{font-size:14px;margin:10px 0 8px;line-height:1.5}
+  .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--none)}
+  .bar span{display:block;height:100%}
+  .legend{display:flex;gap:10px;font-size:11px;color:var(--sub);margin:6px 2px 14px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .go{display:block;text-align:center;margin-top:12px;padding:11px;border-radius:10px;background:var(--bg);border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px}
+  .best .go{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .msg{padding:18px;text-align:center;color:var(--sub);font-size:14px}
+  .err{color:var(--jam)}
+  .settings{display:none}
+  .settings.open{display:block}
+  label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+  input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:15px}
+  .btn{width:100%;margin-top:14px;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+  .note{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.5}
+  .place{font-size:12px;color:var(--sub);margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>출퇴근 길</h1>
+    <div>
+      <button class="icon-btn" id="refreshBtn">새로고침</button>
+      <button class="icon-btn" id="setBtn">설정</button>
+    </div>
+  </header>
+
+  <div class="card settings" id="settings">
+    <label for="key">카카오 REST API 키</label>
+    <input id="key" type="password" autocomplete="off" placeholder="REST API 키 붙여넣기">
+    <label for="home">집</label>
+    <input id="home" type="text">
+    <div class="place" id="homePlace"></div>
+    <label for="work">회사</label>
+    <input id="work" type="text">
+    <div class="place" id="workPlace"></div>
+    <button class="btn" id="saveBtn">저장</button>
+    <div class="note">키와 위치는 이 기기 브라우저에만 저장돼요. 회사 위치가 정문과 다르게 잡히면 회사 칸에 "위도,경도"(예: 35.97,126.62)를 직접 넣어도 돼요.</div>
+  </div>
+
+  <div class="seg">
+    <button id="toWork">출근 (집 → 회사)</button>
+    <button id="toHome">퇴근 (회사 → 집)</button>
+  </div>
+
+  <div class="meta"><span id="updated"></span><span id="auto">3분마다 자동 갱신</span></div>
+  <div class="legend">
+    <span><i style="background:var(--good)"></i>원활</span>
+    <span><i style="background:var(--slow)"></i>서행</span>
+    <span><i style="background:var(--delay)"></i>지연</span>
+    <span><i style="background:var(--jam)"></i>정체</span>
+    <span><i style="background:var(--none)"></i>정보없음</span>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<script>
+const DEFAULTS = { home: "전주시 덕진구 경동로 20", work: "세아베스틸 군산공장" };
+const store = {
+  get(k){ try { return localStorage.getItem("commute_"+k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem("commute_"+k, v); } catch(e){} }
+};
+const $ = id => document.getElementById(id);
+let mode = new Date().getHours() < 12 ? "work" : "home";
+let timer = null;
+
+function cfg(){
+  return {
+    key: store.get("key") || "",
+    home: store.get("home") || DEFAULTS.home,
+    work: store.get("work") || DEFAULTS.work
+  };
+}
+
+async function kakao(url){
+  const r = await fetch(url, { headers: { Authorization: "KakaoAK " + cfg().key } });
+  if (!r.ok) {
+    let t = ""; try { t = (await r.json()).msg || ""; } catch(e){}
+    throw new Error("API 오류 " + r.status + (t ? " · " + t : ""));
+  }
+  return r.json();
+}
+
+async function geocode(q){
+  const m = q.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (m) return { y: +m[1], x: +m[2], name: q.trim() };
+  const cacheKey = "geo_" + q;
+  const cached = store.get(cacheKey);
+  if (cached) { try { return JSON.parse(cached); } catch(e){} }
+  const enc = encodeURIComponent(q);
+  let d = await kakao("https://dapi.kakao.com/v2/local/search/address.json?query=" + enc);
+  let p = d.documents && d.documents[0];
+  let res;
+  if (p) res = { x: +p.x, y: +p.y, name: p.address_name };
+  else {
+    d = await kakao("https://dapi.kakao.com/v2/local/search/keyword.json?query=" + enc);
+    p = d.documents && d.documents[0];
+    if (!p) throw new Error("'" + q + "' 위치를 찾지 못했어요. 설정에서 다시 입력해 주세요.");
+    res = { x: +p.x, y: +p.y, name: p.place_name + " (" + (p.road_address_name || p.address_name) + ")" };
+  }
+  store.set(cacheKey, JSON.stringify(res));
+  return res;
+}
+
+async function directions(o, d, opts){
+  const qs = new URLSearchParams({
+    origin: o.x + "," + o.y,
+    destination: d.x + "," + d.y,
+    priority: "RECOMMEND",
+    summary: "false",
+    ...opts
+  });
+  const j = await kakao("https://apis-navi.kakaomobility.com/v1/directions?" + qs);
+  return (j.routes || []).filter(r => r.result_code === 0);
+}
+
+const TRAFFIC_COLOR = { 1:"var(--jam)", 2:"var(--delay)", 3:"var(--slow)", 4:"var(--good)" };
+
+function analyze(route){
+  const roads = route.sections.flatMap(s => s.roads);
+  const total = roads.reduce((a,r)=>a+r.distance,0) || 1;
+  // 주요 도로: 같은 이름 거리 합산 → 긴 순 상위 4개 → 지나가는 순서대로
+  const agg = new Map();
+  roads.forEach((r,i)=>{
+    const n = (r.name || "").trim(); if (!n) return;
+    const a = agg.get(n) || { dist:0, first:i }; a.dist += r.distance; agg.set(n,a);
+  });
+  const main = [...agg.entries()].sort((a,b)=>b[1].dist-a[1].dist).slice(0,4)
+    .sort((a,b)=>a[1].first-b[1].first).map(e=>e[0]);
+  // 경유점: 가장 긴 도로 구간의 중간 좌표
+  let longest = roads[0];
+  roads.forEach(r=>{ if (r.distance > longest.distance) longest = r; });
+  const v = longest.vertexes, mid = Math.floor(v.length/4)*2;
+  const via = { x: v[mid], y: v[mid+1], name: longest.name || "경유" };
+  const jam = roads.filter(r=>r.traffic_state===1||r.traffic_state===2).reduce((a,r)=>a+r.distance,0);
+  return { roads, total, main, via, jamKm: jam/1000 };
+}
+
+function bar(a){
+  return '<div class="bar">' + a.roads.map(r =>
+    '<span style="width:' + (r.distance/a.total*100).toFixed(2) + '%;background:' + (TRAFFIC_COLOR[r.traffic_state]||"var(--none)") + '"></span>'
+  ).join("") + "</div>";
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const fmtMin = s => Math.round(s/60);
+function hhmm(d){ return d.getHours().toString().padStart(2,"0") + ":" + d.getMinutes().toString().padStart(2,"0"); }
+
+function navLink(o, a, d){
+  const p = x => encodeURIComponent(x.name.split(" (")[0]) + "," + x.y + "," + x.x;
+  return "https://map.kakao.com/link/by/car/" + p(o) + "/" + p(a.via) + "/" + p(d);
+}
+
+async function load(){
+  const c = cfg();
+  const list = $("list");
+  $("toWork").classList.toggle("on", mode==="work");
+  $("toHome").classList.toggle("on", mode==="home");
+  if (!c.key) {
+    list.innerHTML = '<div class="msg">설정에서 카카오 REST API 키를 먼저 입력해 주세요.</div>';
+    $("settings").classList.add("open");
+    return;
+  }
+  list.innerHTML = '<div class="msg">경로 불러오는 중…</div>';
+  try {
+    const [h, w] = await Promise.all([geocode(c.home), geocode(c.work)]);
+    $("homePlace").textContent = "→ " + h.name;
+    $("workPlace").textContent = "→ " + w.name;
+    const o = mode==="work" ? h : w, d = mode==="work" ? w : h;
+
+    const [national, highway] = await Promise.all([
+      directions(o, d, { avoid: "motorway", alternatives: "true" }),
+      directions(o, d, {}).catch(()=>[])
+    ]);
+
+    // 중복 제거 후 소요시간 순
+    const seen = new Set();
+    const routes = national.filter(r => {
+      const k = Math.round(r.summary.distance/100) + "_" + Math.round(r.summary.duration/60);
+      if (seen.has(k)) return false; seen.add(k); return true;
+    }).sort((a,b)=>a.summary.duration-b.summary.duration);
+
+    if (!routes.length) throw new Error("국도 경로를 찾지 못했어요.");
+    const bestDur = routes[0].summary.duration;
+    const now = new Date();
+
+    let html = routes.map((r,i) => {
+      const a = analyze(r), s = r.summary;
+      const diff = fmtMin(s.duration - bestDur);
+      return '<div class="card' + (i===0?" best":"") + '">' +
+        '<div class="row"><div class="dur">' + fmtMin(s.duration) + '분</div>' +
+        '<span class="tag' + (i===0?" best":"") + '">' + (i===0 ? "가장 빠름" : "+" + diff + "분") + '</span></div>' +
+        '<div class="sub">' + (s.distance/1000).toFixed(1) + 'km · ' + hhmm(new Date(now.getTime()+s.duration*1000)) + ' 도착' +
+        (a.jamKm >= 0.5 ? ' · 정체/지연 ' + a.jamKm.toFixed(1) + 'km' : '') +
+        (s.fare && s.fare.toll ? ' · 통행료 ' + s.fare.toll.toLocaleString() + '원' : '') + '</div>' +
+        '<div class="roads">' + (a.main.map(esc).join(" → ") || "-") + '</div>' + bar(a) +
+        '<a class="go" href="' + navLink(o,a,d) + '" target="_blank" rel="noopener">이 길로 카카오맵 열기</a></div>';
+    }).join("");
+
+    const hw = highway[0];
+    if (hw) {
+      const a = analyze(hw), s = hw.summary;
+      const diff = fmtMin(s.duration - bestDur);
+      html += '<div class="card"><div class="row"><div class="dur" style="font-size:22px">' + fmtMin(s.duration) + '분</div>' +
+        '<span class="tag ref">고속도로 포함 참고 ' + (diff<=0 ? diff+"분" : "+"+diff+"분") + '</span></div>' +
+        '<div class="sub">' + (s.distance/1000).toFixed(1) + 'km' + (s.fare && s.fare.toll ? ' · 통행료 ' + s.fare.toll.toLocaleString() + '원' : '') + '</div>' +
+        '<div class="roads">' + (a.main.map(esc).join(" → ") || "-") + '</div>' + bar(a) + '</div>';
+    }
+    list.innerHTML = html;
+    $("updated").textContent = hhmm(now) + " 기준";
+  } catch (e) {
+    list.innerHTML = '<div class="msg err">' + esc(e.message || e) + '</div>';
+  }
+}
+
+function schedule(){
+  clearInterval(timer);
+  timer = setInterval(()=>{ if (document.visibilityState === "visible") load(); }, 180000);
+}
+
+$("toWork").onclick = () => { mode = "work"; load(); };
+$("toHome").onclick = () => { mode = "home"; load(); };
+$("refreshBtn").onclick = load;
+$("setBtn").onclick = () => $("settings").classList.toggle("open");
+$("saveBtn").onclick = () => {
+  store.set("key", $("key").value.trim());
+  store.set("home", $("home").value.trim() || DEFAULTS.home);
+  store.set("work", $("work").value.trim() || DEFAULTS.work);
+  $("settings").classList.remove("open");
+  load();
+};
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+
+(function init(){
+  const c = cfg();
+  $("key").value = c.key; $("home").value = c.home; $("work").value = c.work;
+  load(); schedule();
+})();
+</script>
+</body>
+</html>
